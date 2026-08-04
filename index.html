@@ -7,8 +7,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
   :root{
     --navy:#1D4180;
@@ -89,6 +87,31 @@
     font-family:var(--sans);font-size:14px;background:#fff;color:var(--ink);
   }
   .field select:focus, .field input:focus{outline:2px solid var(--brand-lightblue);border-color:var(--navy);}
+
+  .ms-box{
+    height:40px;border:1px solid var(--line);border-radius:8px;padding:0 12px;
+    font-family:var(--sans);font-size:14px;background:#fff;color:var(--ink);
+    display:flex;align-items:center;cursor:pointer;user-select:none;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
+  }
+  .ms-box:hover{border-color:#B8C2CE;}
+  .ms-box.active{outline:2px solid var(--brand-lightblue);border-color:var(--navy);}
+  .ms-panel{
+    position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:50;
+    background:#fff;border:1px solid var(--line);border-radius:10px;
+    box-shadow:0 8px 24px rgba(20,30,50,0.12);overflow:hidden;
+  }
+  .ms-search{
+    width:100%;height:38px;border:none;border-bottom:1px solid var(--line);padding:0 12px;
+    font-family:var(--sans);font-size:13.5px;box-sizing:border-box;outline:none;
+  }
+  .ms-options{max-height:240px;overflow-y:auto;padding:6px 0;}
+  .ms-option{
+    display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:13.5px;cursor:pointer;
+  }
+  .ms-option:hover{background:#F1F4F8;}
+  .ms-option.all-option{font-weight:600;border-bottom:1px solid var(--line);margin-bottom:4px;padding-bottom:10px;}
+  .ms-option input[type="checkbox"]{accent-color:var(--navy);width:15px;height:15px;flex-shrink:0;}
+  .ms-empty{padding:14px 12px;font-size:13px;color:var(--ink-3);}
   .reset-btn{
     height:40px;border:1px solid var(--line);background:var(--paper);border-radius:8px;
     padding:0 18px;font-family:var(--sans);font-size:13px;color:var(--ink-2);cursor:pointer;white-space:nowrap;
@@ -96,7 +119,7 @@
   }
   .reset-btn:hover{background:#EEF1F5;color:var(--navy);}
 
-  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:26px;}
+  .cards{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-bottom:26px;}
   .card{
     background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
     padding:18px 20px;box-shadow:0 1px 3px rgba(20,30,50,0.04);
@@ -113,6 +136,22 @@
   .chart-box{position:relative;height:270px;}
 
   .table-panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:0 1px 3px rgba(20,30,50,0.04);}
+  .top5-card{border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:#FAFBFD;}
+  .top5-card h4{margin:0 0 10px;font-size:13px;font-weight:700;color:var(--navy);}
+  .top5-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #EEF1F5;font-size:13px;}
+  .top5-row:last-child{border-bottom:none;}
+  .top5-rank{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--pass-bg);color:var(--navy);font-size:11px;font-weight:700;margin-right:8px;}
+  .top5-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .stat-row{display:flex;justify-content:space-between;align-items:center;padding:10px 2px;border-bottom:1px solid #EEF1F5;font-size:14px;}
+  .stat-row:last-child{border-bottom:none;}
+  .stat-name{color:var(--ink);}
+  .stat-bar-track{flex:1;height:6px;background:#EEF1F5;border-radius:4px;margin:0 14px;overflow:hidden;}
+  .stat-bar-fill{height:100%;border-radius:4px;}
+  .stat-value{font-family:var(--mono);font-weight:600;min-width:56px;text-align:right;}
+  .top5-score{font-family:var(--mono);font-weight:600;color:var(--navy);}
+  .profile-stat{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:#FAFBFD;}
+  .profile-stat .label{font-size:11px;color:var(--ink-2);font-weight:600;text-transform:uppercase;letter-spacing:0.03em;margin-bottom:6px;}
+  .profile-stat .value{font-family:var(--mono);font-size:18px;font-weight:600;color:var(--navy);}
   .table-head{
     padding:18px 22px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;
   }
@@ -175,7 +214,7 @@
 <div class="wrap">
 
   <div class="config-banner" id="configBanner">
-    ⚠ Add your published Google Sheet CSV link in the <code>SHEET_CSV_URL</code> variable near the top of this file so the dashboard can read your live data. Currently showing only the uploaded historical data.
+    ⚠ Add your deployed Google Apps Script Web App link in the <code>SHEET_DATA_URL</code> variable near the top of this file so the dashboard can read your live data.
   </div>
 
   <div class="filters">
@@ -183,9 +222,13 @@
       <label>Department</label>
       <select id="fDept"><option value="">All Departments</option></select>
     </div>
-    <div class="field">
+    <div class="field" style="position:relative;">
       <label>Employee Name</label>
-      <select id="fName"><option value="">All Employees</option></select>
+      <div id="fNameBox" class="ms-box" tabindex="0">All Employees</div>
+      <div id="fNamePanel" class="ms-panel" style="display:none;">
+        <input type="text" id="fNameSearch" class="ms-search" placeholder="Search employees...">
+        <div id="fNameOptions" class="ms-options"></div>
+      </div>
     </div>
     <div class="field">
       <label>Year</label>
@@ -196,6 +239,19 @@
       <select id="fMonth"><option value="">All Months</option></select>
     </div>
     <button class="reset-btn" onclick="resetFilters()">Reset Filters</button>
+  </div>
+
+  <div class="table-panel" id="employeeProfile" style="display:none;margin-bottom:24px;">
+    <div class="table-head">
+      <h3>Employee Score Card</h3>
+    </div>
+    <div style="padding:20px 22px;">
+      <div class="top5-card" style="max-width:420px;">
+        <h4 id="profileName">—</h4>
+        <div id="profileMeta" style="font-size:12px;color:var(--ink-3);margin:-6px 0 10px;"></div>
+        <div id="profileStats"></div>
+      </div>
+    </div>
   </div>
 
   <div class="cards">
@@ -210,6 +266,11 @@
       <div class="hint">With 70% Threshold</div>
     </div>
     <div class="card">
+      <div class="label">Average Raw Score</div>
+      <div class="value" id="cAvgRaw">—</div>
+      <div class="hint">Without Threshold</div>
+    </div>
+    <div class="card">
       <div class="label">Pass Rate (≥70%)</div>
       <div class="value pass" id="cPassRate">—</div>
       <div class="hint" id="cPassCount">—</div>
@@ -221,18 +282,30 @@
     </div>
   </div>
 
-  <div class="charts">
-    <div class="panel">
-      <h3>Average Score by Department</h3>
-      <div class="chart-box"><canvas id="deptChart" role="img" aria-label="Bar chart of average score per department">Average score by department</canvas></div>
+  <div class="table-panel" style="margin-bottom:18px;">
+    <div class="table-head">
+      <h3>Employee Performance Summary</h3>
+      <span id="summaryCount">—</span>
     </div>
-    <div class="panel">
-      <h3>Performance Trend by Month</h3>
-      <div class="chart-box"><canvas id="trendChart" role="img" aria-label="Line chart of average score trend by month">Average performance trend by month</canvas></div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th data-key="Department" data-table="summary">Department</th>
+            <th data-key="Name" data-table="summary">Name</th>
+            <th data-key="Records" data-table="summary">Records</th>
+            <th data-key="AvgScore" data-table="summary">Average Score</th>
+            <th data-key="PassCount" data-table="summary">Times ≥ 70%</th>
+            <th data-key="FailCount" data-table="summary">Times &lt; 70%</th>
+            <th data-key="PassRate" data-table="summary">Pass Rate</th>
+          </tr>
+        </thead>
+        <tbody id="summaryBody"></tbody>
+      </table>
     </div>
   </div>
 
-  <div class="table-panel">
+  <div class="table-panel" style="margin-bottom:18px;">
     <div class="table-head">
       <h3>Employee Details</h3>
       <span id="tableCount">—</span>
@@ -249,12 +322,23 @@
             <th data-key="Score_With_Threshold">Score (With Threshold)</th>
             <th data-key="Experience">Experience (yrs)</th>
             <th data-key="Branch">Branch</th>
+            <th data-key="HR">HR</th>
+            <th data-key="Comments">Comments</th>
+            <th data-key="Category">Performance Category</th>
             <th data-key="Status">Status</th>
           </tr>
         </thead>
         <tbody id="tableBody"></tbody>
       </table>
     </div>
+  </div>
+
+  <div class="table-panel">
+    <div class="table-head">
+      <h3>Top 5 Employees by Department</h3>
+      <span style="font-size:12px;color:var(--ink-3);">Ranked by average score (based on current Year/Month filters)</span>
+    </div>
+    <div id="top5Grid" style="padding:20px 22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;"></div>
   </div>
 
   <div class="footer-note">
@@ -266,8 +350,8 @@
 
 <script>
 /* ====== Settings ====== */
-// Replace this with your published Google Sheets CSV link: File > Share > Publish to web > CSV
-const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1xaVzqXnBbg6XRuc7NRC08bObp0xo9ssb4WAwU51fKtA/gviz/tq?tqx=out:csv&gid=420553219";
+// Paste your deployed Google Apps Script Web App URL here (see setup instructions).
+const SHEET_DATA_URL = "https://script.google.com/macros/s/AKfycbyAgBXwQ2MAsGK04l_7MU8WeOBrg-nddzFtougstx9sh5pMT-NurbBVDsbWKueSUlAtjg/exec";
 const REFRESH_MS = 60000;
 const THRESHOLD = 0.70;
 
@@ -280,6 +364,8 @@ const MONTH_MAP = {jan:"January",january:"January",feb:"February",february:"Febr
 let RAW = [];
 let sortKey = "Score_With_Threshold";
 let sortDir = -1;
+let summarySortKey = "AvgScore";
+let summarySortDir = -1;
 
 function normMonth(m){
   if(!m) return "";
@@ -287,22 +373,36 @@ function normMonth(m){
   return MONTH_MAP[key] || (String(m).trim().charAt(0).toUpperCase()+String(m).trim().slice(1).toLowerCase());
 }
 
-function parseCsvText(text){
-  const parsed = Papa.parse(text, {header:true, skipEmptyLines:true});
-  return parsed.data.map(r => {
-    const dept = (r.Department||"").trim();
+function performanceCategory(rawScore){
+  // rawScore is a fraction (e.g. 0.65 = 65%); mirrors the Power BI DAX measure.
+  if(isNaN(rawScore)) return "";
+  const score = rawScore * 100;
+  if(score < 40) return "1- Low Performer";
+  if(score < 70) return "2- Needs Development";
+  if(score <= 100) return "3- Meeting Expectation";
+  if(score <= 110) return "4- High Performer";
+  if(score > 110) return "5- Top Performer";
+  return "Uncategorized";
+}
+
+function parseJsonRows(json){
+  return json.map(r => {
+    const dept = String(r.Department||"").trim();
     const month = normMonth(r.Month);
     return {
       Year: String(r.Year||"").trim(),
       Month: month,
       MonthNum: MONTH_ORDER.indexOf(month)+1,
       Department: dept,
-      Name: (r.Name||"").trim(),
-      SAP_ID: (r.SAP_ID||"").trim(),
+      Name: String(r.Name||"").trim(),
+      SAP_ID: String(r.SAP_ID||"").trim(),
       Score_With_Threshold: parseFloat(r.Score_With_Threshold),
       Score_Without_Threshold: parseFloat(r.Score_Without_Threshold),
       Experience: r.Experience,
-      Branch: (r.Branch||"").trim()
+      Branch: String(r.Branch||"").trim(),
+      Comments: String(r.comments || r.Comments || "").trim(),
+      HR: String(r.HR || r.hr || "").trim(),
+      Category: performanceCategory(parseFloat(r.Score_Without_Threshold))
     };
   }).filter(r => r.Department && r.Name && !isNaN(r.Score_With_Threshold));
 }
@@ -313,19 +413,8 @@ async function loadData(manual){
   const lastUpdated = document.getElementById('lastUpdated');
   const banner = document.getElementById('configBanner');
 
-  if(!SHEET_CSV_URL || SHEET_CSV_URL.indexOf("https://docs.google.com/spreadsheets/d/e/2PACX-1vRkSAjyy6g2iohOP4PB5jksS7KtBatprg0WzPLYQ0THpTg70gUeqa05TycoqDPzhZoO2g2LjKuIXXDe/pub?gid=420553219&single=true&output=csv") !== -1 || SHEET_CSV_URL.indexOf("PASTE_YOUR") !== -1){
+  if(!SHEET_DATA_URL || SHEET_DATA_URL.indexOf("APPS_SCRIPT_URL_PLACEHOLDER") !== -1){
     banner.style.display = "block";
-    if(RAW.length === 0){
-      try{
-        const res = await fetch('master_kpi.csv', {cache:"no-store"});
-        if(res.ok){
-          const text = await res.text();
-          RAW = parseCsvText(text);
-          buildFilterOptions();
-          applyFilters();
-        }
-      }catch(e){}
-    }
     dot.classList.add('off');
     statusText.textContent = "Needs live sheet connection";
     lastUpdated.textContent = "Not connected";
@@ -333,11 +422,11 @@ async function loadData(manual){
   }
 
   try{
-    const url = SHEET_CSV_URL + (SHEET_CSV_URL.includes("?") ? "&" : "?") + "cachebust=" + Date.now();
+    const url = SHEET_DATA_URL + (SHEET_DATA_URL.includes("?") ? "&" : "?") + "cachebust=" + Date.now();
     const res = await fetch(url, {cache:"no-store"});
     if(!res.ok) throw new Error("HTTP " + res.status);
-    const text = await res.text();
-    RAW = parseCsvText(text);
+    const json = await res.json();
+    RAW = parseJsonRows(json);
     banner.style.display = "none";
     dot.classList.remove('off');
     statusText.textContent = "Connected";
@@ -345,9 +434,10 @@ async function loadData(manual){
     buildFilterOptions();
     applyFilters();
   }catch(err){
+    banner.style.display = "block";
     dot.classList.add('off');
     statusText.textContent = "Connection failed";
-    if(manual){ alert("Could not load data from the configured URL. Make sure the sheet is published (Publish to web) as CSV and the link is correct."); }
+    if(manual){ alert("Could not load data from the configured URL. Make sure the Apps Script Web App is deployed with access set to 'Anyone', and the link is correct."); }
   }
 }
 
@@ -355,22 +445,25 @@ function uniqueSorted(arr){
   return [...new Set(arr)].filter(Boolean).sort((a,b)=>a.localeCompare(b));
 }
 
+let selectedNames = new Set();
+let namesPoolCache = [];
+
 function buildFilterOptions(){
   const deptSel = document.getElementById('fDept');
-  const nameSel = document.getElementById('fName');
   const yearSel = document.getElementById('fYear');
   const monthSel = document.getElementById('fMonth');
 
-  const curDept = deptSel.value, curName = nameSel.value, curYear = yearSel.value, curMonth = monthSel.value;
+  const curDept = deptSel.value, curYear = yearSel.value, curMonth = monthSel.value;
 
   const depts = uniqueSorted(RAW.map(r=>r.Department));
   deptSel.innerHTML = '<option value="">All Departments</option>' + depts.map(d=>`<option value="${d}">${d}</option>`).join('');
   deptSel.value = depts.includes(curDept) ? curDept : "";
 
-  const namesPool = RAW.filter(r => !deptSel.value || r.Department === deptSel.value).map(r=>r.Name);
-  const names = uniqueSorted(namesPool);
-  nameSel.innerHTML = '<option value="">All Employees</option>' + names.map(n=>`<option value="${n}">${n}</option>`).join('');
-  nameSel.value = names.includes(curName) ? curName : "";
+  namesPoolCache = uniqueSorted(RAW.filter(r => !deptSel.value || r.Department === deptSel.value).map(r=>r.Name));
+  // drop selections that are no longer valid for the current department
+  selectedNames.forEach(n => { if(!namesPoolCache.includes(n)) selectedNames.delete(n); });
+  renderNameOptions();
+  updateNameBoxLabel();
 
   const years = [...new Set(RAW.map(r=>r.Year))].filter(Boolean).sort();
   yearSel.innerHTML = '<option value="">All Years</option>' + years.map(y=>`<option value="${y}">${y}</option>`).join('');
@@ -381,10 +474,75 @@ function buildFilterOptions(){
   monthSel.value = months.includes(curMonth) ? curMonth : "";
 }
 
+function renderNameOptions(searchTerm){
+  const term = (searchTerm || document.getElementById('fNameSearch').value || "").trim().toLowerCase();
+  const filtered = term ? namesPoolCache.filter(n => n.toLowerCase().includes(term)) : namesPoolCache;
+  const box = document.getElementById('fNameOptions');
+
+  let html = `<div class="ms-option all-option" data-all="1">
+      <input type="checkbox" ${selectedNames.size===0 ? 'checked' : ''}>
+      <span>All Employees</span>
+    </div>`;
+
+  if(filtered.length === 0){
+    html += `<div class="ms-empty">No employees match your search</div>`;
+  } else {
+    html += filtered.map(n => `
+      <div class="ms-option" data-name="${n}">
+        <input type="checkbox" ${selectedNames.has(n) ? 'checked' : ''}>
+        <span>${n}</span>
+      </div>`).join('');
+  }
+  box.innerHTML = html;
+
+  box.querySelectorAll('.ms-option').forEach(opt=>{
+    opt.addEventListener('click', ()=>{
+      if(opt.dataset.all){
+        selectedNames.clear();
+      } else {
+        const n = opt.dataset.name;
+        if(selectedNames.has(n)) selectedNames.delete(n); else selectedNames.add(n);
+      }
+      renderNameOptions();
+      updateNameBoxLabel();
+      applyFilters();
+    });
+  });
+}
+
+function updateNameBoxLabel(){
+  const box = document.getElementById('fNameBox');
+  if(selectedNames.size === 0) box.textContent = "All Employees";
+  else if(selectedNames.size === 1) box.textContent = [...selectedNames][0];
+  else box.textContent = selectedNames.size + " employees selected";
+}
+
+document.getElementById('fNameBox').addEventListener('click', ()=>{
+  const panel = document.getElementById('fNamePanel');
+  const box = document.getElementById('fNameBox');
+  const opening = panel.style.display === 'none';
+  panel.style.display = opening ? 'block' : 'none';
+  box.classList.toggle('active', opening);
+  if(opening){ document.getElementById('fNameSearch').value=''; renderNameOptions(); document.getElementById('fNameSearch').focus(); }
+});
+
+document.getElementById('fNameSearch').addEventListener('input', (e)=>{
+  renderNameOptions(e.target.value);
+});
+
+document.addEventListener('click', (e)=>{
+  const wrap = document.getElementById('fNamePanel').parentElement;
+  if(!wrap.contains(e.target)){
+    document.getElementById('fNamePanel').style.display = 'none';
+    document.getElementById('fNameBox').classList.remove('active');
+  }
+});
+
+
 function currentFilters(){
   return {
     dept: document.getElementById('fDept').value,
-    name: document.getElementById('fName').value,
+    names: selectedNames,
     year: document.getElementById('fYear').value,
     month: document.getElementById('fMonth').value
   };
@@ -392,7 +550,7 @@ function currentFilters(){
 
 function resetFilters(){
   document.getElementById('fDept').value = "";
-  document.getElementById('fName').value = "";
+  selectedNames.clear();
   document.getElementById('fYear').value = "";
   document.getElementById('fMonth').value = "";
   buildFilterOptions();
@@ -403,101 +561,90 @@ function applyFilters(){
   const f = currentFilters();
   let rows = RAW.filter(r =>
     (!f.dept || r.Department === f.dept) &&
-    (!f.name || r.Name === f.name) &&
+    (f.names.size === 0 || f.names.has(r.Name)) &&
     (!f.year || r.Year === f.year) &&
     (!f.month || r.Month === f.month)
   );
   renderCards(rows);
-  renderCharts(rows);
   renderTable(rows);
+  renderEmployeeSummary(rows);
+
+  // Employee profile card: only when exactly one employee is selected.
+  // Uses the employee's full history (ignores Year/Month filters) so
+  // "Last Record" always reflects their most recent data in the sheet.
+  if(f.names.size === 1){
+    const onlyName = [...f.names][0];
+    const historyRows = RAW.filter(r => r.Name === onlyName && (!f.dept || r.Department === f.dept));
+    renderEmployeeProfile(historyRows, onlyName);
+  } else {
+    document.getElementById('employeeProfile').style.display = 'none';
+  }
+
+  // Top 5 respects Year/Month filters but ignores Department/Name filters
+  // so every department's leaderboard is always visible.
+  let top5Rows = RAW.filter(r =>
+    (!f.year || r.Year === f.year) &&
+    (!f.month || r.Month === f.month)
+  );
+  renderTop5(top5Rows);
+}
+
+function renderEmployeeProfile(rows, name){
+  const panel = document.getElementById('employeeProfile');
+  if(rows.length === 0){ panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+
+  const latest = [...rows].sort((a,b)=>{
+    const oa = (parseInt(a.Year)||0)*100 + (a.MonthNum||0);
+    const ob = (parseInt(b.Year)||0)*100 + (b.MonthNum||0);
+    return ob - oa;
+  })[0];
+
+  document.getElementById('profileName').textContent = name;
+  document.getElementById('profileMeta').textContent =
+    `${latest.Department} • ID ${latest.SAP_ID}${latest.Branch ? ' • ' + latest.Branch : ''}${latest.HR ? ' • HR: ' + latest.HR : ''}`;
+
+  const count = rows.length;
+  const avg = rows.reduce((s,r)=>s+r.Score_With_Threshold,0)/count;
+  const passCount = rows.filter(r=>r.Score_With_Threshold >= THRESHOLD).length;
+  const failCount = count - passCount;
+  const lastRecord = latest.Month + " " + latest.Year;
+
+  const stats = [
+    { label: "Last Record", value: lastRecord },
+    { label: "Total Records", value: count },
+    { label: "Average Score", value: (avg*100).toFixed(1) + "%" },
+    { label: "Times ≥ 70%", value: passCount },
+    { label: "Times < 70%", value: failCount },
+    { label: "Latest Category", value: latest.Category || "—" },
+    { label: "Experience (yrs)", value: latest.Experience ?? "—" },
+  ];
+
+  document.getElementById('profileStats').innerHTML = stats.map(s => `
+    <div class="top5-row">
+      <span class="top5-name">${s.label}</span>
+      <span class="top5-score">${s.value}</span>
+    </div>
+  `).join('');
 }
 
 function renderCards(rows){
   const count = rows.length;
   const avg = count ? rows.reduce((s,r)=>s+r.Score_With_Threshold,0)/count : 0;
+  const validRaw = rows.filter(r=>!isNaN(r.Score_Without_Threshold));
+  const avgRaw = validRaw.length ? validRaw.reduce((s,r)=>s+r.Score_Without_Threshold,0)/validRaw.length : 0;
   const passCount = rows.filter(r=>r.Score_With_Threshold >= THRESHOLD).length;
   const failCount = count - passCount;
   const passRate = count ? (passCount/count*100) : 0;
 
   document.getElementById('cCount').textContent = count.toLocaleString('en-US');
   document.getElementById('cAvg').textContent = (avg*100).toFixed(1) + "%";
+  document.getElementById('cAvgRaw').textContent = (avgRaw*100).toFixed(1) + "%";
   document.getElementById('cPassRate').textContent = passRate.toFixed(1) + "%";
   document.getElementById('cPassCount').textContent = passCount.toLocaleString('en-US') + " employees above threshold";
   document.getElementById('cFailCount').textContent = failCount.toLocaleString('en-US');
 }
 
-let deptChartInstance, trendChartInstance;
-
-function renderCharts(rows){
-  const byDept = {};
-  rows.forEach(r=>{
-    if(!byDept[r.Department]) byDept[r.Department] = [];
-    byDept[r.Department].push(r.Score_With_Threshold);
-  });
-  const deptLabels = Object.keys(byDept).sort();
-  const deptAvgs = deptLabels.map(d => (byDept[d].reduce((s,v)=>s+v,0)/byDept[d].length*100));
-
-  const ctx1 = document.getElementById('deptChart');
-  if(deptChartInstance) deptChartInstance.destroy();
-  deptChartInstance = new Chart(ctx1, {
-    type: 'bar',
-    data: {
-      labels: deptLabels,
-      datasets: [{
-        label: 'Average Score %',
-        data: deptAvgs,
-        backgroundColor: deptAvgs.map(v => v>=70 ? '#1D4180' : '#E21E26'),
-        borderRadius: 4,
-        maxBarThickness: 34
-      }]
-    },
-    options: {
-      responsive:true, maintainAspectRatio:false,
-      plugins:{legend:{display:false}},
-      scales:{
-        y:{beginAtZero:true, ticks:{callback:v=>v+"%"}, grid:{color:'#E6E9EE'}},
-        x:{grid:{display:false}}
-      }
-    }
-  });
-
-  const byMonth = {};
-  rows.forEach(r=>{
-    const key = r.Year + "-" + r.Month;
-    if(!byMonth[key]) byMonth[key] = {sum:0,count:0,order:(parseInt(r.Year)||0)*100+(r.MonthNum||0)};
-    byMonth[key].sum += r.Score_With_Threshold;
-    byMonth[key].count += 1;
-  });
-  const monthKeys = Object.keys(byMonth).sort((a,b)=>byMonth[a].order-byMonth[b].order);
-  const monthAvgs = monthKeys.map(k => byMonth[k].sum/byMonth[k].count*100);
-
-  const ctx2 = document.getElementById('trendChart');
-  if(trendChartInstance) trendChartInstance.destroy();
-  trendChartInstance = new Chart(ctx2, {
-    type:'line',
-    data:{
-      labels: monthKeys,
-      datasets:[{
-        label:'Average Score %',
-        data: monthAvgs,
-        borderColor:'#1D4180',
-        backgroundColor:'rgba(29,65,128,0.08)',
-        fill:true,
-        tension:0.25,
-        pointRadius:4,
-        pointBackgroundColor:'#1D4180'
-      }]
-    },
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      plugins:{legend:{display:false}},
-      scales:{
-        y:{beginAtZero:false, ticks:{callback:v=>v+"%"}, grid:{color:'#E6E9EE'}},
-        x:{grid:{display:false}}
-      }
-    }
-  });
-}
 
 function renderTable(rows){
   const tbody = document.getElementById('tableBody');
@@ -513,7 +660,7 @@ function renderTable(rows){
   });
 
   if(sorted.length === 0){
-    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state">No records match the selected filters</div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12"><div class="empty-state">No records match the selected filters</div></td></tr>`;
     return;
   }
 
@@ -528,12 +675,109 @@ function renderTable(rows){
       <td class="score-cell">${(r.Score_With_Threshold*100).toFixed(1)}%</td>
       <td>${r.Experience ?? ''}</td>
       <td>${r.Branch}</td>
+      <td>${r.HR || ''}</td>
+      <td>${r.Comments || ''}</td>
+      <td>${r.Category || ''}</td>
       <td><span class="badge ${pass?'pass':'fail'}">${pass?'Above Threshold':'Below 70%'}</span></td>
     </tr>`;
   }).join('');
 }
 
-document.querySelectorAll('thead th').forEach(th=>{
+function computeEmployeeSummary(rows){
+  const groups = {};
+  rows.forEach(r=>{
+    const key = r.Department + "||" + r.Name;
+    if(!groups[key]) groups[key] = {Department:r.Department, Name:r.Name, scores:[]};
+    groups[key].scores.push(r.Score_With_Threshold);
+  });
+  return Object.values(groups).map(g=>{
+    const records = g.scores.length;
+    const avg = g.scores.reduce((s,v)=>s+v,0)/records;
+    const passCount = g.scores.filter(v=>v>=THRESHOLD).length;
+    const failCount = records - passCount;
+    return {
+      Department: g.Department,
+      Name: g.Name,
+      Records: records,
+      AvgScore: avg,
+      PassCount: passCount,
+      FailCount: failCount,
+      PassRate: records ? (passCount/records*100) : 0
+    };
+  });
+}
+
+function renderEmployeeSummary(rows){
+  const summary = computeEmployeeSummary(rows);
+  document.getElementById('summaryCount').textContent = summary.length.toLocaleString('en-US') + " employees";
+
+  const sorted = [...summary].sort((a,b)=>{
+    let va = a[summarySortKey], vb = b[summarySortKey];
+    if(typeof va === 'string') va = va.toLowerCase();
+    if(typeof vb === 'string') vb = vb.toLowerCase();
+    if(va < vb) return -1*summarySortDir;
+    if(va > vb) return 1*summarySortDir;
+    return 0;
+  });
+
+  const tbody = document.getElementById('summaryBody');
+  if(sorted.length === 0){
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state">No records match the selected filters</div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = sorted.map(e=>{
+    return `<tr>
+      <td>${e.Department}</td>
+      <td>${e.Name}</td>
+      <td>${e.Records}</td>
+      <td class="score-cell">${(e.AvgScore*100).toFixed(1)}%</td>
+      <td class="score-cell">${e.PassCount}</td>
+      <td class="score-cell">${e.FailCount}</td>
+      <td class="score-cell">${e.PassRate.toFixed(0)}%</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderTop5(rows){
+  const summary = computeEmployeeSummary(rows);
+  const byDept = {};
+  summary.forEach(e=>{
+    if(!byDept[e.Department]) byDept[e.Department] = [];
+    byDept[e.Department].push(e);
+  });
+
+  const grid = document.getElementById('top5Grid');
+  const deptNames = Object.keys(byDept).sort();
+
+  if(deptNames.length === 0){
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">No data available</div>`;
+    return;
+  }
+
+  grid.innerHTML = deptNames.map(dept=>{
+    const top5 = [...byDept[dept]].sort((a,b)=>b.AvgScore-a.AvgScore).slice(0,5);
+    const rowsHtml = top5.map((e,i)=>`
+      <div class="top5-row">
+        <span style="display:flex;align-items:center;overflow:hidden;">
+          <span class="top5-rank">${i+1}</span>
+          <span class="top5-name">${e.Name}</span>
+        </span>
+        <span class="top5-score">${(e.AvgScore*100).toFixed(1)}%</span>
+      </div>`).join('');
+    return `<div class="top5-card"><h4>${dept}</h4>${rowsHtml}</div>`;
+  }).join('');
+}
+
+document.querySelectorAll('thead th[data-table="summary"]').forEach(th=>{
+  th.addEventListener('click', ()=>{
+    const key = th.getAttribute('data-key');
+    if(summarySortKey === key){ summarySortDir *= -1; } else { summarySortKey = key; summarySortDir = -1; }
+    applyFilters();
+  });
+});
+
+document.querySelectorAll('thead th:not([data-table="summary"])').forEach(th=>{
   th.addEventListener('click', ()=>{
     const key = th.getAttribute('data-key');
     if(sortKey === key){ sortDir *= -1; } else { sortKey = key; sortDir = -1; }
@@ -541,9 +785,9 @@ document.querySelectorAll('thead th').forEach(th=>{
   });
 });
 
-['fDept','fName','fYear','fMonth'].forEach(id=>{
+['fDept','fYear','fMonth'].forEach(id=>{
   document.getElementById(id).addEventListener('change', (e)=>{
-    if(id === 'fDept'){ document.getElementById('fName').value=""; buildFilterOptions(); }
+    if(id === 'fDept'){ selectedNames.clear(); buildFilterOptions(); }
     applyFilters();
   });
 });
