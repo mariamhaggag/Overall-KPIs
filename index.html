@@ -218,25 +218,37 @@
   </div>
 
   <div class="filters">
-    <div class="field">
+    <div class="field" style="position:relative;">
       <label>Department</label>
-      <select id="fDept"><option value="">All Departments</option></select>
+      <div id="deptBox" class="ms-box" tabindex="0">All Departments</div>
+      <div id="deptPanel" class="ms-panel" style="display:none;">
+        <input type="text" id="deptSearch" class="ms-search" placeholder="Search departments...">
+        <div id="deptOptions" class="ms-options"></div>
+      </div>
     </div>
     <div class="field" style="position:relative;">
       <label>Employee Name</label>
-      <div id="fNameBox" class="ms-box" tabindex="0">All Employees</div>
-      <div id="fNamePanel" class="ms-panel" style="display:none;">
-        <input type="text" id="fNameSearch" class="ms-search" placeholder="Search employees...">
-        <div id="fNameOptions" class="ms-options"></div>
+      <div id="nameBox" class="ms-box" tabindex="0">All Employees</div>
+      <div id="namePanel" class="ms-panel" style="display:none;">
+        <input type="text" id="nameSearch" class="ms-search" placeholder="Search employees...">
+        <div id="nameOptions" class="ms-options"></div>
       </div>
     </div>
-    <div class="field">
+    <div class="field" style="position:relative;">
       <label>Year</label>
-      <select id="fYear"><option value="">All Years</option></select>
+      <div id="yearBox" class="ms-box" tabindex="0">All Years</div>
+      <div id="yearPanel" class="ms-panel" style="display:none;">
+        <input type="text" id="yearSearch" class="ms-search" placeholder="Search years...">
+        <div id="yearOptions" class="ms-options"></div>
+      </div>
     </div>
-    <div class="field">
+    <div class="field" style="position:relative;">
       <label>Month</label>
-      <select id="fMonth"><option value="">All Months</option></select>
+      <div id="monthBox" class="ms-box" tabindex="0">All Months</div>
+      <div id="monthPanel" class="ms-panel" style="display:none;">
+        <input type="text" id="monthSearch" class="ms-search" placeholder="Search months...">
+        <div id="monthOptions" class="ms-options"></div>
+      </div>
     </div>
     <button class="reset-btn" onclick="resetFilters()">Reset Filters</button>
   </div>
@@ -256,9 +268,9 @@
 
   <div class="cards">
     <div class="card">
-      <div class="label">Records Displayed</div>
+      <div class="label">Months Covered</div>
       <div class="value" id="cCount">—</div>
-      <div class="hint">Based on current filters</div>
+      <div class="hint">Distinct months in current filters</div>
     </div>
     <div class="card">
       <div class="label">Average Score</div>
@@ -353,6 +365,7 @@
 // Paste your deployed Google Apps Script Web App URL here (see setup instructions).
 const SHEET_DATA_URL = "https://script.google.com/macros/s/AKfycbyAgBXwQ2MAsGK04l_7MU8WeOBrg-nddzFtougstx9sh5pMT-NurbBVDsbWKueSUlAtjg/exec";
 const REFRESH_MS = 60000;
+const FETCH_TIMEOUT_MS = 20000; // cancel a request if it hangs longer than this
 const THRESHOLD = 0.70;
 
 const MONTH_ORDER = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -421,11 +434,20 @@ async function loadData(manual){
     return;
   }
 
+  if(manual){ statusText.textContent = "Refreshing…"; }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
   try{
-    const url = SHEET_DATA_URL + (SHEET_DATA_URL.includes("?") ? "&" : "?") + "cachebust=" + Date.now();
-    const res = await fetch(url, {cache:"no-store"});
+    const url = SHEET_DATA_URL + (SHEET_DATA_URL.includes("?") ? "&" : "?")
+      + "cachebust=" + Date.now()
+      + (manual ? "&refresh=1" : ""); // manual refresh bypasses the Apps Script cache
+    const res = await fetch(url, {cache:"no-store", signal: controller.signal});
+    clearTimeout(timeoutId);
     if(!res.ok) throw new Error("HTTP " + res.status);
     const json = await res.json();
+    if(json && json.error){ throw new Error(json.message || "Server error"); }
     RAW = parseJsonRows(json);
     banner.style.display = "none";
     dot.classList.remove('off');
@@ -434,10 +456,18 @@ async function loadData(manual){
     buildFilterOptions();
     applyFilters();
   }catch(err){
-    banner.style.display = "block";
+    clearTimeout(timeoutId);
     dot.classList.add('off');
-    statusText.textContent = "Connection failed";
-    if(manual){ alert("Could not load data from the configured URL. Make sure the Apps Script Web App is deployed with access set to 'Anyone', and the link is correct."); }
+    const timedOut = err.name === "AbortError";
+    statusText.textContent = timedOut ? "Timed out" : "Connection failed";
+    // Keep showing the last successfully loaded data instead of blanking the
+    // dashboard, unless we never loaded anything yet.
+    if(RAW.length === 0){ banner.style.display = "block"; }
+    if(manual){
+      alert(timedOut
+        ? "The request took too long (over " + (FETCH_TIMEOUT_MS/1000) + "s) and was cancelled. The sheet may be large or Apps Script is slow to respond — try again in a moment."
+        : "Could not load data from the configured URL. Make sure the Apps Script Web App is deployed with access set to 'Anyone', and the link is correct.");
+    }
   }
 }
 
@@ -445,52 +475,45 @@ function uniqueSorted(arr){
   return [...new Set(arr)].filter(Boolean).sort((a,b)=>a.localeCompare(b));
 }
 
-let selectedNames = new Set();
-let namesPoolCache = [];
+const FILTER_KEYS = ['dept','name','year','month'];
+const FILTER_ALL_LABEL = { dept:'All Departments', name:'All Employees', year:'All Years', month:'All Months' };
+let selected = { dept: new Set(), name: new Set(), year: new Set(), month: new Set() };
 
-function buildFilterOptions(){
-  const deptSel = document.getElementById('fDept');
-  const yearSel = document.getElementById('fYear');
-  const monthSel = document.getElementById('fMonth');
-
-  const curDept = deptSel.value, curYear = yearSel.value, curMonth = monthSel.value;
-
-  const depts = uniqueSorted(RAW.map(r=>r.Department));
-  deptSel.innerHTML = '<option value="">All Departments</option>' + depts.map(d=>`<option value="${d}">${d}</option>`).join('');
-  deptSel.value = depts.includes(curDept) ? curDept : "";
-
-  namesPoolCache = uniqueSorted(RAW.filter(r => !deptSel.value || r.Department === deptSel.value).map(r=>r.Name));
-  // drop selections that are no longer valid for the current department
-  selectedNames.forEach(n => { if(!namesPoolCache.includes(n)) selectedNames.delete(n); });
-  renderNameOptions();
-  updateNameBoxLabel();
-
-  const years = [...new Set(RAW.map(r=>r.Year))].filter(Boolean).sort();
-  yearSel.innerHTML = '<option value="">All Years</option>' + years.map(y=>`<option value="${y}">${y}</option>`).join('');
-  yearSel.value = years.includes(curYear) ? curYear : "";
-
-  const months = MONTH_ORDER.filter(m => RAW.some(r=>r.Month===m));
-  monthSel.innerHTML = '<option value="">All Months</option>' + months.map(m=>`<option value="${m}">${m}</option>`).join('');
-  monthSel.value = months.includes(curMonth) ? curMonth : "";
+function getPool(key){
+  if(key === 'dept') return uniqueSorted(RAW.map(r=>r.Department));
+  if(key === 'name') return uniqueSorted(RAW.filter(r => selected.dept.size===0 || selected.dept.has(r.Department)).map(r=>r.Name));
+  if(key === 'year') return [...new Set(RAW.map(r=>r.Year))].filter(Boolean).sort();
+  if(key === 'month') return MONTH_ORDER.filter(m => RAW.some(r=>r.Month===m));
 }
 
-function renderNameOptions(searchTerm){
-  const term = (searchTerm || document.getElementById('fNameSearch').value || "").trim().toLowerCase();
-  const filtered = term ? namesPoolCache.filter(n => n.toLowerCase().includes(term)) : namesPoolCache;
-  const box = document.getElementById('fNameOptions');
+function buildFilterOptions(){
+  FILTER_KEYS.forEach(key=>{
+    const pool = getPool(key);
+    selected[key].forEach(v => { if(!pool.includes(v)) selected[key].delete(v); });
+    renderOptions(key);
+    updateBoxLabel(key);
+  });
+}
+
+function renderOptions(key, searchTerm){
+  const searchEl = document.getElementById(key+'Search');
+  const term = (searchTerm !== undefined ? searchTerm : (searchEl ? searchEl.value : "")).trim().toLowerCase();
+  const pool = getPool(key);
+  const filtered = term ? pool.filter(v => String(v).toLowerCase().includes(term)) : pool;
+  const box = document.getElementById(key+'Options');
 
   let html = `<div class="ms-option all-option" data-all="1">
-      <input type="checkbox" ${selectedNames.size===0 ? 'checked' : ''}>
-      <span>All Employees</span>
+      <input type="checkbox" ${selected[key].size===0 ? 'checked' : ''}>
+      <span>${FILTER_ALL_LABEL[key]}</span>
     </div>`;
 
   if(filtered.length === 0){
-    html += `<div class="ms-empty">No employees match your search</div>`;
+    html += `<div class="ms-empty">No matches</div>`;
   } else {
-    html += filtered.map(n => `
-      <div class="ms-option" data-name="${n}">
-        <input type="checkbox" ${selectedNames.has(n) ? 'checked' : ''}>
-        <span>${n}</span>
+    html += filtered.map(v => `
+      <div class="ms-option" data-val="${v}">
+        <input type="checkbox" ${selected[key].has(v) ? 'checked' : ''}>
+        <span>${v}</span>
       </div>`).join('');
   }
   box.innerHTML = html;
@@ -498,61 +521,75 @@ function renderNameOptions(searchTerm){
   box.querySelectorAll('.ms-option').forEach(opt=>{
     opt.addEventListener('click', ()=>{
       if(opt.dataset.all){
-        selectedNames.clear();
+        selected[key].clear();
       } else {
-        const n = opt.dataset.name;
-        if(selectedNames.has(n)) selectedNames.delete(n); else selectedNames.add(n);
+        const v = opt.dataset.val;
+        if(selected[key].has(v)) selected[key].delete(v); else selected[key].add(v);
       }
-      renderNameOptions();
-      updateNameBoxLabel();
+      // Department drives which employees are selectable; prune stale name picks.
+      if(key === 'dept'){
+        const namePool = getPool('name');
+        selected.name.forEach(n => { if(!namePool.includes(n)) selected.name.delete(n); });
+        renderOptions('name');
+        updateBoxLabel('name');
+      }
+      renderOptions(key);
+      updateBoxLabel(key);
       applyFilters();
     });
   });
 }
 
-function updateNameBoxLabel(){
-  const box = document.getElementById('fNameBox');
-  if(selectedNames.size === 0) box.textContent = "All Employees";
-  else if(selectedNames.size === 1) box.textContent = [...selectedNames][0];
-  else box.textContent = selectedNames.size + " employees selected";
+function updateBoxLabel(key){
+  const box = document.getElementById(key+'Box');
+  const set = selected[key];
+  if(set.size === 0) box.textContent = FILTER_ALL_LABEL[key];
+  else if(set.size === 1) box.textContent = [...set][0];
+  else box.textContent = set.size + " selected";
 }
 
-document.getElementById('fNameBox').addEventListener('click', ()=>{
-  const panel = document.getElementById('fNamePanel');
-  const box = document.getElementById('fNameBox');
-  const opening = panel.style.display === 'none';
-  panel.style.display = opening ? 'block' : 'none';
-  box.classList.toggle('active', opening);
-  if(opening){ document.getElementById('fNameSearch').value=''; renderNameOptions(); document.getElementById('fNameSearch').focus(); }
-});
-
-document.getElementById('fNameSearch').addEventListener('input', (e)=>{
-  renderNameOptions(e.target.value);
+FILTER_KEYS.forEach(key=>{
+  document.getElementById(key+'Box').addEventListener('click', ()=>{
+    const panel = document.getElementById(key+'Panel');
+    const box = document.getElementById(key+'Box');
+    const opening = panel.style.display === 'none';
+    // close any other open panels
+    FILTER_KEYS.forEach(k=>{
+      if(k !== key){
+        document.getElementById(k+'Panel').style.display = 'none';
+        document.getElementById(k+'Box').classList.remove('active');
+      }
+    });
+    panel.style.display = opening ? 'block' : 'none';
+    box.classList.toggle('active', opening);
+    if(opening){
+      const searchEl = document.getElementById(key+'Search');
+      searchEl.value = '';
+      renderOptions(key);
+      searchEl.focus();
+    }
+  });
+  document.getElementById(key+'Search').addEventListener('input', (e)=>{
+    renderOptions(key, e.target.value);
+  });
 });
 
 document.addEventListener('click', (e)=>{
-  const wrap = document.getElementById('fNamePanel').parentElement;
-  if(!wrap.contains(e.target)){
-    document.getElementById('fNamePanel').style.display = 'none';
-    document.getElementById('fNameBox').classList.remove('active');
-  }
+  FILTER_KEYS.forEach(key=>{
+    const wrap = document.getElementById(key+'Panel').parentElement;
+    if(!wrap.contains(e.target)){
+      document.getElementById(key+'Panel').style.display = 'none';
+      document.getElementById(key+'Box').classList.remove('active');
+    }
+  });
 });
 
-
 function currentFilters(){
-  return {
-    dept: document.getElementById('fDept').value,
-    names: selectedNames,
-    year: document.getElementById('fYear').value,
-    month: document.getElementById('fMonth').value
-  };
+  return selected;
 }
 
 function resetFilters(){
-  document.getElementById('fDept').value = "";
-  selectedNames.clear();
-  document.getElementById('fYear').value = "";
-  document.getElementById('fMonth').value = "";
+  FILTER_KEYS.forEach(key => selected[key].clear());
   buildFilterOptions();
   applyFilters();
 }
@@ -560,10 +597,10 @@ function resetFilters(){
 function applyFilters(){
   const f = currentFilters();
   let rows = RAW.filter(r =>
-    (!f.dept || r.Department === f.dept) &&
-    (f.names.size === 0 || f.names.has(r.Name)) &&
-    (!f.year || r.Year === f.year) &&
-    (!f.month || r.Month === f.month)
+    (f.dept.size === 0 || f.dept.has(r.Department)) &&
+    (f.name.size === 0 || f.name.has(r.Name)) &&
+    (f.year.size === 0 || f.year.has(r.Year)) &&
+    (f.month.size === 0 || f.month.has(r.Month))
   );
   renderCards(rows);
   renderTable(rows);
@@ -572,9 +609,9 @@ function applyFilters(){
   // Employee profile card: only when exactly one employee is selected.
   // Uses the employee's full history (ignores Year/Month filters) so
   // "Last Record" always reflects their most recent data in the sheet.
-  if(f.names.size === 1){
-    const onlyName = [...f.names][0];
-    const historyRows = RAW.filter(r => r.Name === onlyName && (!f.dept || r.Department === f.dept));
+  if(f.name.size === 1){
+    const onlyName = [...f.name][0];
+    const historyRows = RAW.filter(r => r.Name === onlyName && (f.dept.size===0 || f.dept.has(r.Department)));
     renderEmployeeProfile(historyRows, onlyName);
   } else {
     document.getElementById('employeeProfile').style.display = 'none';
@@ -583,8 +620,8 @@ function applyFilters(){
   // Top 5 respects Year/Month filters but ignores Department/Name filters
   // so every department's leaderboard is always visible.
   let top5Rows = RAW.filter(r =>
-    (!f.year || r.Year === f.year) &&
-    (!f.month || r.Month === f.month)
+    (f.year.size === 0 || f.year.has(r.Year)) &&
+    (f.month.size === 0 || f.month.has(r.Month))
   );
   renderTop5(top5Rows);
 }
@@ -630,6 +667,7 @@ function renderEmployeeProfile(rows, name){
 
 function renderCards(rows){
   const count = rows.length;
+  const monthsCovered = new Set(rows.map(r => r.Year + "-" + r.Month)).size;
   const avg = count ? rows.reduce((s,r)=>s+r.Score_With_Threshold,0)/count : 0;
   const validRaw = rows.filter(r=>!isNaN(r.Score_Without_Threshold));
   const avgRaw = validRaw.length ? validRaw.reduce((s,r)=>s+r.Score_Without_Threshold,0)/validRaw.length : 0;
@@ -637,7 +675,7 @@ function renderCards(rows){
   const failCount = count - passCount;
   const passRate = count ? (passCount/count*100) : 0;
 
-  document.getElementById('cCount').textContent = count.toLocaleString('en-US');
+  document.getElementById('cCount').textContent = monthsCovered.toLocaleString('en-US');
   document.getElementById('cAvg').textContent = (avg*100).toFixed(1) + "%";
   document.getElementById('cAvgRaw').textContent = (avgRaw*100).toFixed(1) + "%";
   document.getElementById('cPassRate').textContent = passRate.toFixed(1) + "%";
@@ -781,13 +819,6 @@ document.querySelectorAll('thead th:not([data-table="summary"])').forEach(th=>{
   th.addEventListener('click', ()=>{
     const key = th.getAttribute('data-key');
     if(sortKey === key){ sortDir *= -1; } else { sortKey = key; sortDir = -1; }
-    applyFilters();
-  });
-});
-
-['fDept','fYear','fMonth'].forEach(id=>{
-  document.getElementById(id).addEventListener('change', (e)=>{
-    if(id === 'fDept'){ selectedNames.clear(); buildFilterOptions(); }
     applyFilters();
   });
 });
